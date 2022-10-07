@@ -146,6 +146,7 @@ impl HG64 {
     /*
      * Get the compile-time KEYBITS setting
      */
+    #[inline]
     pub fn keybits(&self) -> u16 {
         KEYBITS
     }
@@ -153,6 +154,7 @@ impl HG64 {
     /*
      * Add 1 to the value's bucket
      */
+    #[inline]
     pub fn inc(&mut self, value: u64) -> () {
         self.add(value, 1)
     }
@@ -385,16 +387,20 @@ impl HG64 {
         assert!(value <= max);
     }
 
+    #[inline]
     fn bump_count(&mut self, key: u16, count: u64) -> () {
-        self.packs[(key / PACKSIZE) as usize].count += count;
-        let (pack_index, pos) = self.find_bucket(key);
+        let pack_index = (key / PACKSIZE) as usize;
+        self.packs[pack_index].count += count;
+        let pos = self.find_bucket(key);
         self.packs[pack_index].bucket[pos] += count;
     }
 
+    #[inline]
     fn get_key_count(&self, key: u16) -> u64 {
         self.get_bucket_value(key)
     }
 
+    #[inline]
     fn get_pack_count(&self, key: u16) -> u64 {
         self.packs[(key / PACKSIZE) as usize].count
     }
@@ -426,6 +432,7 @@ impl HG64 {
     // what we'll use as the type for the list of buckets inside a pack.
     // We will still maintain the bitmap, and to return a mutable pointer
     // to the bucket we'll return a boxed single element slice from the vec.
+    #[inline]
     fn get_bucket_value(&self, key: u16) -> u64 {
         let pack = &self.packs[(key / PACKSIZE) as usize];
         let bit = 1u64 << (key % PACKSIZE);
@@ -439,10 +446,11 @@ impl HG64 {
         }
     }
     // Original name: get_bucket
-    // Returns the pack index & bucket offset within theh pack
+    // Returns the pack index & bucket offset within the pack
     // for the given key. Only valid until a future call to
     // find_bucket.
-    fn find_bucket(&mut self, key: u16) -> (usize, usize) {
+    #[inline]
+    fn find_bucket(&mut self, key: u16) -> usize {
         // Original comment: hot path
         let pack_index = (key / PACKSIZE) as usize;
         let pack = &mut self.packs[pack_index];
@@ -451,9 +459,7 @@ impl HG64 {
         let bmp = pack.bmp;
         let pos: usize = (bmp & mask).count_ones() as usize;
         if bmp & bit != 0 {
-            // How to return a mutable pointer to an item in the array?
-            // return pack.bucket[pos];
-            return (pack_index, pos);
+            return pos;
         }
 
         // Original comment: cold path
@@ -467,7 +473,7 @@ impl HG64 {
         // let pop = bmp.count_ones() as usize;
         pack.bucket.insert(pos, 0);
         pack.bmp |= bit;
-        return (pack_index, pos);
+        return pos;
     }
 }
 
