@@ -179,6 +179,8 @@ impl HG64 {
      */
     pub fn get(&self, key: u16) -> (u64, u64, u64, bool) {
         let min = get_minval(key);
+        // Using saturating add where the original code didn't.  See
+        // https://github.com/fanf2/hg64/issues/1
         let max = get_maxval(key).saturating_add(1);
         let count = self.get_key_count(key);
         let more = key + 1 < KEYS;
