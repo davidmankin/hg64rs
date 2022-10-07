@@ -14,22 +14,13 @@
 
 use std::mem;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
-
 const KEYBITS: u16 = 12;
 const EXPBITS: u16 = 6; // log2(VALUEBITS)
-const MANBITS: u16 = KEYBITS - EXPBITS;
-const MANSIZE: u16 = 1 << MANBITS;
-const KEYSIZE: u16 = 1 << KEYBITS;
+const MANBITS: u16 = KEYBITS - EXPBITS; // 6@12
+const MANSIZE: u16 = 1 << MANBITS; // 64@12
+const KEYSIZE: u16 = 1 << KEYBITS; //4096@12
 const PACKSIZE: u16 = 64;
-const PACKS: u16 = KEYSIZE / PACKSIZE;
+const PACKS: u16 = KEYSIZE / PACKSIZE; //64@12
 
 /*
  * We waste a little extra space in the PACKS array that could be saved
@@ -49,7 +40,7 @@ struct Pack {
 }
 
 #[derive(Debug)]
-struct HG64 {
+pub struct HG64 {
     packs: [Pack; PACKS as usize],
 }
 
@@ -61,8 +52,7 @@ impl Default for HG64 {
     }
 }
 
-//fn is_divisible_by(lhs: u32, rhs: u32) -> bool {
-
+#[inline]
 fn interpolate(span: u64, mul: u64, div: u64) -> u64 {
     let frac = if div == 0 {
         1.0
@@ -72,6 +62,7 @@ fn interpolate(span: u64, mul: u64, div: u64) -> u64 {
     return (span as f64 * frac) as u64;
 }
 
+#[inline]
 fn get_maxval(key: u16) -> u64 {
     // Source comment:
     // don't shift by 64; reduce shift by 2 and pre-shift UINT64_MAX
@@ -80,16 +71,18 @@ fn get_maxval(key: u16) -> u64 {
     get_minval(key) + range
 }
 
+#[inline]
 fn get_minval(key: u16) -> u64 {
+    // println!("====get_minval key={}=====", key);
+    if key < MANSIZE {
+        return key as u64;
+    }
     let exponent = key / MANSIZE - 1;
     let mantissa = key % MANSIZE + MANSIZE;
-    if key < MANSIZE {
-        key as u64
-    } else {
-        (mantissa << exponent) as u64
-    }
+    (mantissa as u64) << exponent
 }
 
+#[inline]
 fn get_key(value: u64) -> u16 {
     // Original comment:
     // hot path
@@ -105,13 +98,7 @@ fn get_key(value: u64) -> u16 {
     }
 }
 
-/*
- * Allocate a new histogram
- */
-fn create_hg64() -> Box<HG64> {
-    return Box::new(HG64::default());
-}
-
+/* To create one just call HG64::default() */
 impl HG64 {
     /*
      * Calculate the total count of all the buckets in the histogram
@@ -165,7 +152,7 @@ impl HG64 {
         }
     }
 
-    /* TODO: THIS IS NOT IDIOMATIC RUST
+    /* // Original Comment
      * Get information about a bucket. This can be used as an iterator, by
      * initializing `key` to zero and incrementing by one until `hg64_get()`
      * returns `false`.
@@ -178,8 +165,24 @@ impl HG64 {
      * can be zero. (Empty buckets are included in the iterator.)
      */
     // source method: "hg64_get"
-    pub fn get(&self, key: u64, pmin: &u64, pmax: &u64, pcount: &u64) -> bool {
-        false
+    /*
+     * Get information about a bucket. Returns a tuple of:
+     * `min`: the bucket's minimum inclusive value
+     * `max`: the bucket's maximum exclusive value
+     * `count`: the bucket's counter, which can be zero.
+     *          Empty buckets are included in the iteration.
+     * `more`: whether there are more buckets after this one
+     *
+     * The parameter `key` specifies bucket's index.  This method can be used
+     * to iterate through all the buckets by walking key from zero until
+     * the `more` result is false.
+     */
+    pub fn get(&self, key: u16) -> (u64, u64, u64, bool) {
+        let min = get_minval(key);
+        let max = get_maxval(key).saturating_add(1);
+        let count = self.get_key_count(key);
+        let more = key + 1 < KEYS;
+        (min, max, count, more)
     }
 
     /*
@@ -461,5 +464,165 @@ impl HG64 {
         pack.bmp |= bit;
         // return &pack->bucket[pos]
         return (pack_index, pos);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::Rng;
+    #[test]
+    fn it_works() {
+        let result = 2 + 2;
+        assert_eq!(result, 4);
+    }
+
+    #[test]
+    fn validate_empty() {
+        let hg64 = HG64::default();
+        hg64.validate();
+    }
+
+    #[test]
+    fn validate_one_small_item() {
+        let mut hg64 = HG64::default();
+        hg64.add(0, 1);
+        hg64.validate();
+    }
+
+    #[test]
+    fn validate_one_large_item() {
+        let mut hg64 = HG64::default();
+        hg64.add(u64::MAX, 1);
+        hg64.validate();
+        hg64.add(u64::MAX, u64::MAX - 1);
+        hg64.validate();
+    }
+
+    #[test]
+    fn validate_cumulative_counts() {
+        let mut hg64 = HG64::default();
+        hg64.add(0, 1);
+        hg64.add(1000, 2);
+        hg64.add(10000, 3);
+        hg64.add(100000, 4);
+        hg64.add(1000000, 5);
+
+        assert_eq!(hg64.population(), 15);
+        let (min, max, count, more) = hg64.get(0);
+        assert_eq!(min, 0);
+        assert_eq!(max, 1);
+        assert_eq!(count, 1);
+        assert_eq!(more, true);
+
+        let mut more = true;
+        let mut key = 0;
+        while more {
+            let t = hg64.get(key);
+            println!("{} => {:?}", key, t);
+            key += 1;
+            more = t.3;
+            if t.1 > 1000000 {
+                println!("and more...");
+                break;
+            }
+        }
+
+        let median = hg64.value_at_quantile(0.5);
+        assert!((median as f64) > 100000.0 * 0.9);
+        assert!((median as f64) < 100000.0 * 1.1);
+    }
+
+    const SAMPLE_COUNT: usize = 1000 * 1000;
+    #[test]
+    fn test_from_original_code() {
+        let mut data: Vec<u64> = Vec::with_capacity(SAMPLE_COUNT);
+        let mut rng = rand::thread_rng();
+        for i in 0..SAMPLE_COUNT as u64 {
+            if i < 256 {
+                data.push(i);
+            } else {
+                data.push(rng.gen_range(0..(SAMPLE_COUNT as u64)));
+            }
+        }
+
+        let mut hg = HG64::default();
+        let start = std::time::Instant::now();
+        for i in 0..SAMPLE_COUNT {
+            hg.add(data[i], 1);
+        }
+        eprintln!(
+            "elapsed {:?} => {} ns per item",
+            start.elapsed(),
+            start.elapsed().as_nanos() as f32 / SAMPLE_COUNT as f32
+        ); // note :?
+        hg.validate();
+        data.sort_unstable();
+        let mut q = 0_f64;
+        for expo in [-1, -2, -3] {
+            let step = 10_f64.powf(expo as f64);
+            for n in 0..9 {
+                data_vs_hg64(&hg, &data, q);
+                q += step;
+            }
+        }
+        data_vs_hg64(&hg, &data, 0.999);
+        data_vs_hg64(&hg, &data, 0.9999);
+        data_vs_hg64(&hg, &data, 0.99999);
+        data_vs_hg64(&hg, &data, 0.999999);
+
+        let mut count: u64;
+        let mut max = 0_u64;
+        for key in 0..KEYS {
+            count = hg.get(key).2;
+            max = std::cmp::max(max, count);
+        }
+        eprintln!("{} keybits", hg.keybits());
+        eprintln!("{} bytes [ITS A LIE FOR NOW]", hg.size());
+        eprintln!("{} buckets", hg.buckets());
+        eprintln!("{} largest", max);
+        eprintln!("{} samples", hg.population());
+        let (mean, var) = hg.mean_variance();
+        eprintln!("{} mu", mean);
+        eprintln!("{} sigma", var.sqrt());
+
+        eprintln!("CSV:");
+        eprintln!("value,count");
+        for key in 0..KEYS {
+            let (value, _, count, _) = hg.get(key);
+            if count != 0 {
+                eprintln!("{},{}", value, count);
+            }
+        }
+    }
+
+    fn data_vs_hg64(hg: &HG64, data: &Vec<u64>, q: f64) {
+        let rank = (q * SAMPLE_COUNT as f64) as usize;
+        let value = hg.value_at_quantile(q);
+        let p = hg.quantile_of_value(data[rank]);
+        let div = if data[rank] == 0 {
+            1.0_f64
+        } else {
+            data[rank] as f64
+        };
+        eprintln!(
+            "data: ({:8.4}% {:8});  hg64: ({:8.4}% {:8});  error: value={:+.9} rank={:+.9}",
+            q * 100.0,
+            data[rank],
+            p * 100.0,
+            value,
+            (data[rank] as f64 - value as f64) / div,
+            (q - p) / (if q == 0.0 { 1.0 } else { q })
+        );
+    }
+
+    fn dump_csv(hg: &HG64) {
+        eprintln!("value,count");
+        for key in 0..KEYS {
+            let (value, _, count, _) = hg.get(key);
+            if count != 0 {
+                eprintln!("{},{}", value, count);
+            }
+        }
     }
 }
