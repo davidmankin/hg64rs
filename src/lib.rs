@@ -168,7 +168,7 @@ impl HG64 {
     /*
      * Get information about a bucket. Returns a tuple of:
      * `min`: the bucket's minimum inclusive value
-     * `max`: the bucket's maximum exclusive value
+     * `max`: the bucket's maximum inclusive value
      * `count`: the bucket's counter, which can be zero.
      *          Empty buckets are included in the iteration.
      * `more`: whether there are more buckets after this one
@@ -179,9 +179,7 @@ impl HG64 {
      */
     pub fn get(&self, key: u16) -> (u64, u64, u64, bool) {
         let min = get_minval(key);
-        // Using saturating add where the original code didn't.  See
-        // https://github.com/fanf2/hg64/issues/1
-        let max = get_maxval(key).saturating_add(1);
+        let max = get_maxval(key);
         let count = self.get_key_count(key);
         let more = key + 1 < KEYS;
         (min, max, count, more)
@@ -513,7 +511,7 @@ mod tests {
         assert_eq!(hg64.population(), 15);
         let (min, max, count, more) = hg64.get(0);
         assert_eq!(min, 0);
-        assert_eq!(max, 1);
+        assert_eq!(max, 0);
         assert_eq!(count, 1);
         assert_eq!(more, true);
 
