@@ -1,15 +1,22 @@
-#![allow(dead_code, unused_variables)]
+#![allow(dead_code)]
 
 /*
  * hg64rs - 64-bit histograms
  *
- * Ported from Tony Finch's C language hg64.
+ * Ported from Tony Finch's C language hg64 (https://github.com/fanf2/hg64)
  *
+ * Original License:
  *
- * C code Written by Tony Finch <dot@dotat.at> <fanf@isc.org>
- * You may do anything with this. It has no warranty.
- * <https://creativecommons.org/publicdomain/zero/1.0/>
- * SPDX-License-Identifier: CC0-1.0
+ * Written by Tony Finch <dot@dotat.at> <fanf@isc.org>
+ *
+ * Permission is hereby granted to use, copy, modify, and/or
+ * distribute this software for any purpose with or without fee.
+ *
+ * This software is provided 'as is', without warranty of any kind.
+ * In no event shall the authors be liable for any damages arising
+ * from the use of this software.
+ *
+ * SPDX-License-Identifier: 0BSD OR MIT-0
  */
 
 use std::mem;
@@ -23,6 +30,7 @@ const PACKSIZE: u16 = 64;
 const PACKS: u16 = KEYSIZE / PACKSIZE; //64@12
 
 /*
+ * Original comment:
  * We waste a little extra space in the PACKS array that could be saved
  * by omitting exponents that aren't needed by denormal numbers, but the
  * arithmetic gets awkward for smaller KEYBITS. However we need the
@@ -34,8 +42,14 @@ const KEYS: u16 = EXPONENTS * MANSIZE;
 
 #[derive(Debug, Default, Clone)]
 struct Pack {
+    // The total of all counts in the bucket array.
+    // TODO: what happens if this overflows?
     count: u64,
-    bmp: u64, // Bitmap of which buckets exist (?)
+    // Bitmap of which buckets exist.
+    // i.e. if the MSB in bmp that's 1 is the 4's place, then
+    // the first item in the bucket array represents the 4 slot
+    // in the pack.
+    bmp: u64,
     bucket: Vec<u64>,
 }
 
@@ -446,23 +460,13 @@ impl HG64 {
 
         // Originally there was an optional "nullable" parameter that would
         // just return null instead of mutating the packs.  But for now we
-        // remove it for simplicity in converting to Rustl
+        // remove it for simplicity in converting to Rust
         // if nullable {
         //     return null;
         // }
         // let pop = bmp.count_ones() as usize;
-        let len = pack.bucket.len();
-        // assert_eq!(pop, len);
-        // let need = len + 1;
-        // let move_ = len - pos;
-        // Original C code
-        // 	uint64_t *ptr = realloc(pack->bucket, need * sizeof(uint64_t));
-        // memmove(ptr + pos + 1, ptr + pos, move * sizeof(uint64_t));
-        // pack->bucket = ptr;
-        // pack->bucket[pos] = 0
         pack.bucket.insert(pos, 0);
         pack.bmp |= bit;
-        // return &pack->bucket[pos]
         return (pack_index, pos);
     }
 }
@@ -561,7 +565,7 @@ mod tests {
         let mut q = 0_f64;
         for expo in [-1, -2, -3] {
             let step = 10_f64.powf(expo as f64);
-            for n in 0..9 {
+            for _ in 0..9 {
                 data_vs_hg64(&hg, &data, q);
                 q += step;
             }
@@ -586,14 +590,14 @@ mod tests {
         eprintln!("{} mu", mean);
         eprintln!("{} sigma", var.sqrt());
 
-        eprintln!("CSV:");
-        eprintln!("value,count");
-        for key in 0..KEYS {
-            let (value, _, count, _) = hg.get(key);
-            if count != 0 {
-                eprintln!("{},{}", value, count);
-            }
-        }
+        // eprintln!("CSV:");
+        // eprintln!("value,count");
+        // for key in 0..KEYS {
+        //     let (value, _, count, _) = hg.get(key);
+        //     if count != 0 {
+        //         eprintln!("{},{}", value, count);
+        //     }
+        // }
     }
 
     fn data_vs_hg64(hg: &HG64, data: &Vec<u64>, q: f64) {
@@ -614,15 +618,5 @@ mod tests {
             (data[rank] as f64 - value as f64) / div,
             (q - p) / (if q == 0.0 { 1.0 } else { q })
         );
-    }
-
-    fn dump_csv(hg: &HG64) {
-        eprintln!("value,count");
-        for key in 0..KEYS {
-            let (value, _, count, _) = hg.get(key);
-            if count != 0 {
-                eprintln!("{},{}", value, count);
-            }
-        }
     }
 }

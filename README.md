@@ -1,9 +1,9 @@
 hg64rs
 =============
 
-Port of hg64 to Rust.
+Port of [hg64](https://github.com/fanf2/hg64) to Rust.
 
-TODO explain more
+TODO explain more.
 
 Testing
 ---------
@@ -19,4 +19,4 @@ assertions.
 To run the tests use `cargo test`.  To run the tests in release mode
 (so the timings are more accurate) use `cargo test -r`.  And to show
 the outputs that report on numeric and timing performance use
-`cargo test -r --nocapture`.
+`cargo test -r -- --nocapture`.
