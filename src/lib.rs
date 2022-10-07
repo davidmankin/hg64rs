@@ -341,13 +341,13 @@ impl HG64 {
         let min = 0_u64;
         let max = 1_u64 << 16;
         let step = 1_u64;
-        for value in (0..max).step_by(step as usize) {
+        for value in (min..max).step_by(step as usize) {
             self.validate_value(value);
         }
         let min = 1_u64 << 30;
         let max = 1_u64 << 40;
         let step = 1_u64 << 20;
-        for value in (0..max).step_by(step as usize) {
+        for value in (min..max).step_by(step as usize) {
             self.validate_value(value);
         }
         let max = u64::MAX;
@@ -536,6 +536,18 @@ mod tests {
         assert!((median as f64) > 100000.0 * 0.9);
         assert!((median as f64) < 100000.0 * 1.1);
     }
+
+    // #[test]
+    // fn test_overflow() {
+    //     // NOTE: this test fails in debug mode but passes in release mode
+    //     // Probably because overflow isn't checked when the code is optimized.
+    //     // I don't know what to make of this other than warn that the code
+    //     // behaves poorly when
+    //     let mut hg64 = HG64::default();
+    //     hg64.add(0u64, u64::MAX);
+    //     hg64.add(1u64, u64::MAX);
+
+    // }
 
     const SAMPLE_COUNT: usize = 1000 * 1000;
     #[test]
