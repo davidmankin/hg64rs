@@ -140,8 +140,7 @@ impl HG64 {
      * Calculate the memory used in bytes
      */
     pub fn size(&self) -> usize {
-        //TODO  this isn't right now that we use vec
-        mem::size_of::<HG64>() + mem::size_of::<u64>() * self.buckets()
+        mem::size_of_val(self) + mem::size_of::<u64>() * self.buckets()
     }
     /*
      * Get the compile-time KEYBITS setting
@@ -600,7 +599,7 @@ mod tests {
             max = std::cmp::max(max, count);
         }
         eprintln!("{} keybits", hg.keybits());
-        eprintln!("{} bytes [ITS A LIE FOR NOW]", hg.size());
+        eprintln!("{} bytes", hg.size());
         eprintln!("{} buckets", hg.buckets());
         eprintln!("{} largest", max);
         eprintln!("{} samples", hg.population());
@@ -635,6 +634,32 @@ mod tests {
             value,
             (data[rank] as f64 - value as f64) / div,
             (q - p) / (if q == 0.0 { 1.0 } else { q })
+        );
+    }
+
+    #[test]
+    fn memory_test() {
+        struct Foo {
+            packs: [Pack; 2],
+        }
+        let mut x = Foo {
+            packs: [Pack::default(), Pack::default()],
+        };
+        x.packs[0].bucket.push(1u64);
+        x.packs[0].bucket.push(1u64);
+        x.packs[0].bucket.push(1u64);
+        x.packs[0].bucket.push(1u64);
+        eprintln!("Foo size = {}", mem::size_of_val(&x));
+        eprintln!("Packs size = {}", mem::size_of_val(&x.packs));
+        eprintln!("Pack size = {}", mem::size_of_val(&x.packs[0]));
+        eprintln!("Vec size = {}", mem::size_of_val(&x.packs[0].bucket));
+        eprintln!(
+            "Vec[0] heap usage = {}",
+            mem::size_of_val(&*x.packs[0].bucket)
+        );
+        eprintln!(
+            "Vec[1] heap usage = {}",
+            mem::size_of_val(&*x.packs[1].bucket)
         );
     }
 }
