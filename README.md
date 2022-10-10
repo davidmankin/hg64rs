@@ -20,3 +20,21 @@ To run the tests use `cargo test`.  To run the tests in release mode
 (so the timings are more accurate) use `cargo test -r`.  And to show
 the outputs that report on numeric and timing performance use
 `cargo test -r -- --nocapture`.
+
+
+
+Licence
+-------
+
+Written by David Mankin, based on code by Tony Finch.
+
+Permission is hereby granted to use, copy, modify, and/or
+distribute this software for any purpose with or without fee.
+
+This software is provided 'as is', without warranty of any kind.
+In no event shall the authors be liable for any damages arising
+from the use of this software.
+
+    SPDX-License-Identifier: 0BSD OR MIT-0
+
+_[this is a zero-conditions libre software licence](https://dotat.at/0lib.html)_
