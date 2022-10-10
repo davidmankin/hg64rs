@@ -1,4 +1,4 @@
-// #![allow(dead_code)]
+#![allow(dead_code)]
 
 /*
  * hg64rs - 64-bit histograms

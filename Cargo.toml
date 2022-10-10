@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 array-init = "2.0.1"
+
+[dev-dependencies]
 rand = "0.8.5"
