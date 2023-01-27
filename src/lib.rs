@@ -87,7 +87,7 @@ fn interpolate(span: u64, mul: u64, div: u64) -> u64 {
     } else {
         (mul as f64) / (div as f64)
     };
-    return (span as f64 * frac) as u64;
+    (span as f64 * frac) as u64
 }
 
 #[inline]
@@ -95,7 +95,7 @@ fn get_maxval(key: u16) -> u64 {
     // Source comment:
     // don't shift by 64; reduce shift by 2 and pre-shift UINT64_MAX
     let shift = PACKSIZE - key / MANSIZE - 1;
-    let range = u64::MAX / 4 >> shift;
+    let range = (u64::MAX / 4) >> shift;
     get_minval(key) + range
 }
 
@@ -136,7 +136,7 @@ impl HG64 {
         for pack in self.packs.iter() {
             pop += pack.count;
         }
-        return pop;
+        pop
     }
 
     /*
@@ -168,14 +168,14 @@ impl HG64 {
      * Add 1 to the value's bucket
      */
     #[inline]
-    pub fn inc(&mut self, value: u64) -> () {
+    pub fn inc(&mut self, value: u64) {
         self.add(value, 1)
     }
 
     /*
      * Add an arbitrary count to the value's bucket
      */
-    pub fn add(&mut self, value: u64, count: u64) -> () {
+    pub fn add(&mut self, value: u64, count: u64) {
         if count > 0 {
             self.bump_count(get_key(value), count);
         }
@@ -218,7 +218,7 @@ impl HG64 {
      * Increase the counts in `self` by the counts recorded in `source`
      */
     // source method "hg64_merge"
-    pub fn merge_from(&mut self, source: &HG64) -> () {
+    pub fn merge_from(&mut self, source: &HG64) {
         for key in 0..KEYS {
             let count = source.get_key_count(key);
             self.bump_count(key, count)
@@ -261,7 +261,7 @@ impl HG64 {
         let min: u64 = get_minval(key);
         let max: u64 = get_maxval(key);
         let count = self.get_key_count(key);
-        return min + interpolate(max - min, rank, count);
+        min + interpolate(max - min, rank, count)
     }
 
     /*
@@ -275,12 +275,10 @@ impl HG64 {
         let pop: f64 = self.population() as f64;
         let q = if quanntile < 0.0 {
             0.0
+        } else if quanntile > 1.0 {
+            1.0
         } else {
-            if quanntile > 1.0 {
-                1.0
-            } else {
-                quanntile
-            }
+            quanntile
         };
         let rank = q * pop;
         self.value_at_rank(rank as u64)
@@ -314,7 +312,7 @@ impl HG64 {
     // double hg64_quantile_of_value(hg64 *hg, uint64_t value);
     pub fn quantile_of_value(&self, value: u64) -> f64 {
         let rank = self.rank_of_value(value);
-        return rank as f64 / self.population() as f64;
+        rank as f64 / self.population() as f64
     }
 
     /* // Actual rust interface:
@@ -347,12 +345,12 @@ impl HG64 {
                 sigma += count * delta * (min + max - mean);
             }
         }
-        return (mean, sigma / pop);
+        (mean, sigma / pop)
     }
 
     // ================ internal ==============
 
-    fn validate(&self) -> () {
+    fn validate(&self) {
         let min = 0_u64;
         let max = 1_u64 << 16;
         let step = 1_u64;
@@ -401,7 +399,7 @@ impl HG64 {
     }
 
     #[inline]
-    fn bump_count(&mut self, key: u16, count: u64) -> () {
+    fn bump_count(&mut self, key: u16, count: u64) {
         let pack_index = (key / PACKSIZE) as usize;
         self.packs[pack_index].count += count;
         let pos = self.find_bucket(key);
@@ -453,9 +451,9 @@ impl HG64 {
         let bmp = pack.bmp;
         let pos: usize = (bmp & mask).count_ones() as usize;
         if bmp & bit != 0 {
-            return pack.bucket[pos];
+            pack.bucket[pos]
         } else {
-            return 0;
+            0
         }
     }
     // Original name: get_bucket
@@ -486,7 +484,7 @@ impl HG64 {
         // let pop = bmp.count_ones() as usize;
         pack.bucket.insert(pos, 0);
         pack.bmp |= bit;
-        return pos;
+        pos
     }
 }
 
@@ -542,7 +540,7 @@ mod tests {
         let mut key = 0;
         while more {
             let t = hg64.get(key);
-            println!("{} => {:?}", key, t);
+            println!("{key} => {t:?}");
             key += 1;
             more = t.3;
             if t.1 > 1000000 {
@@ -615,10 +613,10 @@ mod tests {
         eprintln!("{} keybits", hg.keybits());
         eprintln!("{} bytes", hg.size());
         eprintln!("{} buckets", hg.buckets());
-        eprintln!("{} largest", max);
+        eprintln!("{max} largest");
         eprintln!("{} samples", hg.population());
         let (mean, var) = hg.mean_variance();
-        eprintln!("{} mu", mean);
+        eprintln!("{mean} mu");
         eprintln!("{} sigma", var.sqrt());
 
         // eprintln!("CSV:");
